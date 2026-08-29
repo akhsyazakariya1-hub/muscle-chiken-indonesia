@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <circle cx="50" cy="50" r="48" fill="#063B32" stroke="#D8C7A1" stroke-width="2"/>
+  <!-- Crown / Comb -->
+  <path d="M42 22L47 28L50 20L53 28L58 22L56 32H44L42 22Z" fill="#D8C7A1"/>
+  <!-- Elegant Rooster/Chicken Head Silhouette with muscular chest -->
+  <path d="M50 32C42 32 38 38 38 45C38 49 40 52 42 54C39 58 35 64 35 72C35 76 40 78 50 78C60 78 65 76 65 72C65 64 61 58 58 54C60 52 62 49 62 45C62 38 58 32 50 32Z" fill="#D8C7A1"/>
+  <!-- Beak -->
+  <path d="M58 42L67 45L58 48Z" fill="#B98262"/>
+  <!-- Flexing Wing Accent -->
+  <path d="M38 50C30 52 26 58 28 65C30 70 38 68 42 62Z" fill="#D8C7A1"/>
+  <path d="M62 50C70 52 74 58 72 65C70 70 62 68 58 62Z" fill="#D8C7A1"/>
+  <!-- Gold Shield Rim -->
+  <circle cx="50" cy="50" r="43" stroke="#D8C7A1" stroke-width="1" stroke-dasharray="2 2"/>
+</svg>
