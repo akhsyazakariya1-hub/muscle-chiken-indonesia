@@ -20,10 +20,10 @@ export const AdminToast = ({ onSelectOrder }) => {
         body: `Order #${newOrder.id} dari ${newOrder.customer_name || newOrder.customerName} (${newOrder.total ? `Rp ${newOrder.total.toLocaleString('id-ID')}` : ''})`
       });
 
-      // Auto dismiss toast after 8 seconds
+      // Auto dismiss toast after 10 seconds
       setTimeout(() => {
         setActiveToastOrder(prev => (prev?.id === newOrder.id ? null : prev));
-      }, 8000);
+      }, 10000);
     });
 
     return () => unsubscribe();
@@ -51,16 +51,18 @@ export const AdminToast = ({ onSelectOrder }) => {
           </button>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between font-mono text-xs">
-            <span className="font-bold text-[#D8C7A1]">#{activeToastOrder.id}</span>
-            <span className="text-[10px] text-gray-400">{formatWIBTimestamp(activeToastOrder.created_at)}</span>
-          </div>
-          <p className="text-xs text-[#F7F3EA] font-semibold mt-1">
-            {activeToastOrder.customer_name || activeToastOrder.customerName} baru saja melakukan pemesanan.
+        <div className="space-y-1.5 font-sans text-xs">
+          <p className="font-mono font-bold text-[#D8C7A1] text-sm">
+            Order #{activeToastOrder.id}
           </p>
-          <p className="font-serif text-lg font-bold text-[#D8C7A1] mt-1">
-            Total: {formatRupiah(activeToastOrder.total)}
+          <p className="text-gray-200">
+            <strong>Customer:</strong> {activeToastOrder.customer_name || activeToastOrder.customerName}
+          </p>
+          <p className="text-gray-200">
+            <strong>Total:</strong> <span className="text-[#D8C7A1] font-bold">{formatRupiah(activeToastOrder.total)}</span>
+          </p>
+          <p className="text-[11px] text-gray-400 font-mono">
+            <strong>Ordered At:</strong> {formatWIBTimestamp(activeToastOrder.created_at)}
           </p>
         </div>
 
@@ -69,7 +71,7 @@ export const AdminToast = ({ onSelectOrder }) => {
             if (onSelectOrder) onSelectOrder(activeToastOrder);
             setActiveToastOrder(null);
           }}
-          className="w-full py-2.5 rounded-xl bg-[#063B32] text-[#D8C7A1] font-bold text-xs uppercase tracking-wider hover:bg-[#D8C7A1] hover:text-[#071B2A] border border-[#D8C7A1] transition-all flex items-center justify-center gap-2 shadow-lg"
+          className="w-full py-2.5 rounded-xl bg-[#063B32] text-[#D8C7A1] font-bold text-xs uppercase tracking-wider hover:bg-[#D8C7A1] hover:text-[#071B2A] border border-[#D8C7A1] transition-all flex items-center justify-center gap-2 shadow-lg mt-2"
         >
           <Eye className="w-4 h-4" />
           <span>[ VIEW ORDER ]</span>

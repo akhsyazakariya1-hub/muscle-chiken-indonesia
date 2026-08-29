@@ -10,7 +10,8 @@ import {
   TrendingUp, 
   Crown,
   Users,
-  ChefHat
+  ChefHat,
+  Eye
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -40,10 +41,10 @@ ChartJS.register(
   Legend
 );
 
-
-export const AdminDashboard = () => {
+export const AdminDashboard = ({ onSelectOrder }) => {
   const [orders, setOrders] = useState(dbService.getOrders());
   const [products, setProducts] = useState(dbService.getProducts());
+  const [newlyArrivedIds, setNewlyArrivedIds] = useState([]);
 
   const refreshDashboardData = () => {
     setOrders(dbService.getOrders());
@@ -54,8 +55,14 @@ export const AdminDashboard = () => {
     refreshDashboardData();
 
     // REALTIME DASHBOARD EVENT LISTENERS
-    const unsubscribeNewOrder = realtimeService.subscribe('NEW_ORDER', () => {
+    const unsubscribeNewOrder = realtimeService.subscribe('NEW_ORDER', (newOrder) => {
       refreshDashboardData();
+      if (newOrder && newOrder.id) {
+        setNewlyArrivedIds(prev => [newOrder.id, ...prev]);
+        setTimeout(() => {
+          setNewlyArrivedIds(prev => prev.filter(id => id !== newOrder.id));
+        }, 6000);
+      }
     });
 
     const unsubscribeStatus = realtimeService.subscribe('ORDER_STATUS_UPDATED', () => {
@@ -73,8 +80,6 @@ export const AdminDashboard = () => {
   const newOrdersCount = orders.filter(o => (o.order_status || o.status) === 'NEW').length;
   const preparingCount = orders.filter(o => ['PREPARING', 'COOKING'].includes(o.order_status || o.status)).length;
   const completedOrders = orders.filter(o => (o.order_status || o.status) === 'COMPLETED').length;
-  const cancelledOrders = orders.filter(o => (o.order_status || o.status) === 'CANCELLED').length;
-  const lowStockCount = products.filter(p => p.stock <= (p.lowStockThreshold || 10)).length;
 
   const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
 
@@ -113,11 +118,11 @@ export const AdminDashboard = () => {
         </div>
         <div className="flex items-center gap-2 bg-[#063B32] text-[#D8C7A1] px-4 py-2 rounded-xl text-xs font-bold shadow-md">
           <Crown className="w-4 h-4 text-[#D8C7A1]" />
-          <span>LIVE TIMEZONE: ASIA/JAKARTA (WIB)</span>
+          <span>TIMEZONE: ASIA/JAKARTA (WIB)</span>
         </div>
       </div>
 
-      {/* KPI METRICS GRID */}
+      {/* KPI METRICS GRID (REQUIREMENT K) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
         {/* TODAY'S REVENUE */}
@@ -139,7 +144,7 @@ export const AdminDashboard = () => {
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">TODAY'S ORDERS</span>
             <h3 className="font-serif text-3xl font-bold mt-1 text-[#10201F]">{totalOrders}</h3>
-            <p className="text-[10px] text-emerald-700 mt-1 font-semibold">{newOrdersCount} order baru (NEW)</p>
+            <p className="text-[10px] text-emerald-700 mt-1 font-semibold">+{newOrdersCount} order baru (NEW)</p>
           </div>
           <div className="p-3 rounded-xl bg-[#063B32]/10 text-[#063B32]">
             <ShoppingBag className="w-6 h-6" />
@@ -186,6 +191,76 @@ export const AdminDashboard = () => {
           <div className="h-64 flex items-center justify-center">
             <Doughnut data={categoryChartData} options={{ responsive: true, maintainAspectRatio: false }} />
           </div>
+        </div>
+      </div>
+
+      {/* RECENT ORDERS TABLE (REQUIREMENT J) */}
+      <div className="p-6 rounded-3xl bg-[#F5F1E8] border border-[#063B32]/15 shadow-xl space-y-4">
+        <div className="flex items-center justify-between border-b border-[#063B32]/10 pb-4">
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-[#B98262]">REALTIME QUEUE</span>
+            <h3 className="font-serif text-xl font-bold text-[#10201F]">RECENT ORDERS</h3>
+          </div>
+          <span className="text-xs font-mono font-bold text-[#063B32]">
+            LIVE FEED: {orders.length} total orders
+          </span>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-[#063B32]/10 bg-white">
+          <table className="w-full text-left text-xs text-[#10201F]">
+            <thead className="bg-[#063B32] text-[#D8C7A1] uppercase text-[10px] font-bold tracking-wider">
+              <tr>
+                <th className="p-4">ORDER ID</th>
+                <th className="p-4">CUSTOMER</th>
+                <th className="p-4">TOTAL</th>
+                <th className="p-4">STATUS</th>
+                <th className="p-4">ORDERED AT</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#063B32]/10">
+              {orders.slice(0, 8).map(order => {
+                const isNewHighlight = newlyArrivedIds.includes(order.id);
+                const status = order.order_status || order.status;
+                return (
+                  <tr 
+                    key={order.id} 
+                    className={`transition-all duration-500 ${
+                      isNewHighlight 
+                        ? 'bg-amber-100/90 border-l-4 border-amber-500 font-medium' 
+                        : 'hover:bg-[#E8E5DC]/60'
+                    }`}
+                  >
+                    <td className="p-4 font-mono font-bold text-[#063B32]">
+                      #{order.id}
+                      {isNewHighlight && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500 text-white text-[9px] font-bold animate-pulse">
+                          NEW!
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 font-semibold">
+                      {order.customer_name || order.customerName}
+                    </td>
+                    <td className="p-4 font-serif font-bold text-sm text-[#063B32]">
+                      {formatRupiah(order.total)}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold ${
+                        status === 'NEW' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                        status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
+                        status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {status}
+                      </span>
+                    </td>
+                    <td className="p-4 font-mono text-[11px] text-gray-600">
+                      {formatWIBTimestamp(order.created_at || order.createdAt)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
 

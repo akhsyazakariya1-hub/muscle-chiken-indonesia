@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { dbService } from '../services/db';
+import { cloudDbService } from '../services/cloudDb';
 
 const AppContext = createContext();
 
@@ -43,17 +44,20 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     refreshDataFromDB();
-    
+    cloudDbService.startSync();
+
     // Listen for database updates across app
     const handleDbUpdate = () => refreshDataFromDB();
     window.addEventListener('mc_db_updated', handleDbUpdate);
     window.addEventListener('mc_favorites_updated', handleDbUpdate);
 
     return () => {
+      cloudDbService.stopSync();
       window.removeEventListener('mc_db_updated', handleDbUpdate);
       window.removeEventListener('mc_favorites_updated', handleDbUpdate);
     };
   }, []);
+
 
   const toggleFavorite = (productId) => {
     const updatedFavs = dbService.toggleFavorite(productId);

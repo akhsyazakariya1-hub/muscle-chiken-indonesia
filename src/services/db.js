@@ -7,6 +7,7 @@ import {
   INITIAL_SETTINGS 
 } from '../data/initialData';
 import { realtimeService } from './realtime';
+import { cloudDbService } from './cloudDb';
 
 const KEYS = {
   PRODUCTS: 'mc_products_v2',
@@ -53,21 +54,30 @@ const getOrSetInitial = (key, defaultData) => {
 export const dbService = {
   // PRODUCTS
   getProducts: () => getOrSetInitial(KEYS.PRODUCTS, INITIAL_PRODUCTS || []),
-  saveProducts: (products) => {
+  
+  saveProductsDirectly: (products) => {
     localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
     window.dispatchEvent(new Event('mc_db_updated'));
+  },
+
+  saveProducts: (products) => {
+    dbService.saveProductsDirectly(products);
+    cloudDbService.pushToCloud({ products });
   },
 
   addProduct: (productData) => {
     const products = dbService.getProducts();
     const newProduct = {
       ...productData,
-      id: `mc-${Date.now().toString().slice(-4)}`,
-      sku: productData.sku || `MC-${productData.category?.substring(0, 3).toUpperCase() || 'GEN'}-${Math.floor(100 + Math.random() * 900)}`,
-      rating: 5.0,
-      reviewCount: 0,
-      isAvailable: true,
-      stock: Number(productData.stock || 20)
+      id: productData.id || `mc-${Date.now().toString().slice(-4)}`,
+      sku: productData.sku || `MC-${(productData.category || 'GEN').substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      rating: productData.rating || 5.0,
+      reviewCount: productData.reviewCount || 0,
+      isAvailable: productData.isAvailable ?? true,
+      isBestSeller: Boolean(productData.isBestSeller),
+      isFeatured: Boolean(productData.isFeatured),
+      stock: Number(productData.stock || 20),
+      lowStockThreshold: Number(productData.lowStockThreshold || 5)
     };
     products.unshift(newProduct);
     dbService.saveProducts(products);
@@ -132,6 +142,7 @@ export const dbService = {
   savePromotions: (promos) => {
     localStorage.setItem(KEYS.PROMOTIONS, JSON.stringify(promos));
     window.dispatchEvent(new Event('mc_db_updated'));
+    cloudDbService.pushToCloud({ promotions: promos });
   },
   addPromotion: (promoData) => {
     const promos = dbService.getPromotions();
@@ -158,7 +169,7 @@ export const dbService = {
     localStorage.setItem(KEYS.INVENTORY_LOGS, JSON.stringify(logs));
   },
 
-  // ORDERS WITH REALTIME BROADCAST & IDEMPOTENCY PROTECTION
+  // ORDERS WITH REALTIME BROADCAST & CLOUD PUSH
   getOrders: () => getOrSetInitial(KEYS.ORDERS, [
     {
       id: 'MC-10291',
@@ -201,6 +212,11 @@ export const dbService = {
     }
   ]),
 
+  saveOrdersDirectly: (orders) => {
+    localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
+    window.dispatchEvent(new Event('mc_db_updated'));
+  },
+
   createOrder: (orderData) => {
     const orders = dbService.getOrders();
     const orderId = `MC-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -216,7 +232,7 @@ export const dbService = {
     };
 
     orders.unshift(newOrder);
-    localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
+    dbService.saveOrdersDirectly(orders);
 
     // Deduct stock
     const products = dbService.getProducts();
@@ -233,7 +249,7 @@ export const dbService = {
         });
       }
     });
-    dbService.saveProducts(products);
+    dbService.saveProductsDirectly(products);
 
     // Create Notification Record
     dbService.addNotification({
@@ -245,9 +261,11 @@ export const dbService = {
       is_read: false
     });
 
-    // Broadcast Realtime Event
+    // Broadcast Realtime Event locally & across windows
     realtimeService.broadcast('NEW_ORDER', newOrder);
-    window.dispatchEvent(new Event('mc_db_updated'));
+    
+    // Push to Cloud for Cross-Device Realtime Sync (HP -> Laptop)
+    cloudDbService.pushToCloud({ orders, products });
 
     return newOrder;
   },
@@ -277,10 +295,10 @@ export const dbService = {
             });
           }
         });
-        dbService.saveProducts(products);
+        dbService.saveProductsDirectly(products);
       }
 
-      localStorage.setItem(KEYS.ORDERS, JSON.stringify(orders));
+      dbService.saveOrdersDirectly(orders);
 
       // Broadcast Realtime Event to Customer
       realtimeService.broadcast('ORDER_STATUS_UPDATED', {
@@ -289,7 +307,8 @@ export const dbService = {
         customer_phone: order.customer_phone
       });
 
-      window.dispatchEvent(new Event('mc_db_updated'));
+      cloudDbService.pushToCloud({ orders });
+
       return order;
     }
   },
@@ -329,6 +348,7 @@ export const dbService = {
     notifications.unshift(newNotif);
     localStorage.setItem(KEYS.NOTIFICATIONS, JSON.stringify(notifications));
     window.dispatchEvent(new Event('mc_notifications_updated'));
+    cloudDbService.pushToCloud({ notifications });
     return newNotif;
   },
 

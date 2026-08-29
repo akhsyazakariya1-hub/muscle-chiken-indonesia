@@ -6,7 +6,6 @@ import {
   Edit3, 
   Trash2, 
   Copy, 
-  Archive, 
   Check, 
   X, 
   Flame, 
@@ -22,73 +21,90 @@ export const AdminProducts = () => {
   // Form State
   const [formData, setFormData] = useState({
     name: '',
-    subtitle: '',
-    category: 'fried',
+    description: '',
     price: 45000,
     discountPrice: '',
+    category: 'fried',
+    image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?q=80&w=800&auto=format&fit=crop',
     stock: 30,
     lowStockThreshold: 10,
-    spicyLevel: 1,
-    description: '',
-    image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?q=80&w=800&auto=format&fit=crop',
-    badge: 'NEW',
-    isBestSeller: false,
-    isFeatured: true
+    isAvailable: true,
+    isBestSeller: false
   });
 
   const handleOpenCreate = () => {
     setFormData({
       name: '',
-      subtitle: '',
-      category: 'fried',
+      description: 'Dibuat dengan rempah rahasia Muscle Chicken Indonesia...',
       price: 48000,
       discountPrice: '',
+      category: 'fried',
+      image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?q=80&w=800&auto=format&fit=crop',
       stock: 30,
       lowStockThreshold: 10,
-      spicyLevel: 1,
-      description: 'Dibuat dengan rempah rahasia Muscle Chicken Indonesia...',
-      image: 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?q=80&w=800&auto=format&fit=crop',
-      badge: 'NEW',
-      isBestSeller: false,
-      isFeatured: true
+      isAvailable: true,
+      isBestSeller: false
     });
     setEditingProduct(null);
     setIsCreatingNew(true);
   };
 
   const handleOpenEdit = (product) => {
-    setFormData({ ...product, discountPrice: product.discountPrice || '' });
-    setEditingProduct(product);
+    // Fetch latest fresh product from DB (Requirement E)
+    const latestProducts = dbService.getProducts();
+    const freshProd = latestProducts.find(p => p.id === product.id) || product;
+
+    setFormData({ 
+      name: freshProd.name || '',
+      description: freshProd.description || '',
+      price: freshProd.price || 0,
+      discountPrice: freshProd.discountPrice || '',
+      category: freshProd.category || 'fried',
+      image: freshProd.image || '',
+      stock: freshProd.stock || 0,
+      lowStockThreshold: freshProd.lowStockThreshold || 5,
+      isAvailable: freshProd.isAvailable ?? true,
+      isBestSeller: freshProd.isBestSeller ?? false
+    });
+    setEditingProduct(freshProd);
     setIsCreatingNew(false);
   };
 
   const handleSaveProduct = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.price) {
-      showToast('Mohon lengkapi nama dan harga produk.', 'error');
-      return;
+    try {
+      if (!formData.name || !formData.price) {
+        showToast('Unable to save product. Please try again.', 'error');
+        return;
+      }
+
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: Number(formData.price),
+        discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
+        category: formData.category,
+        image: formData.image.trim(),
+        stock: Number(formData.stock),
+        lowStockThreshold: Number(formData.lowStockThreshold),
+        isAvailable: Boolean(formData.isAvailable),
+        isBestSeller: Boolean(formData.isBestSeller)
+      };
+
+      if (editingProduct) {
+        dbService.updateProduct(editingProduct.id, payload);
+      } else {
+        dbService.addProduct(payload);
+      }
+
+      showToast('Product saved successfully.', 'success');
+      refreshDataFromDB();
+      setIsCreatingNew(false);
+      setEditingProduct(null);
+    } catch (err) {
+      console.error('Save product error:', err);
+      showToast('Unable to save product. Please try again.', 'error');
     }
-
-    const payload = {
-      ...formData,
-      price: Number(formData.price),
-      discountPrice: formData.discountPrice ? Number(formData.discountPrice) : null,
-      stock: Number(formData.stock),
-      lowStockThreshold: Number(formData.lowStockThreshold),
-      spicyLevel: Number(formData.spicyLevel)
-    };
-
-    if (editingProduct) {
-      dbService.updateProduct(editingProduct.id, payload);
-      showToast(`Produk "${formData.name}" berhasil diperbarui!`, 'success');
-    } else {
-      dbService.addProduct(payload);
-      showToast(`Produk "${formData.name}" berhasil ditambahkan!`, 'success');
-    }
-
-    refreshDataFromDB();
-    setIsCreatingNew(false);
-    setEditingProduct(null);
   };
 
   const handleDelete = (id, name) => {
@@ -119,8 +135,8 @@ export const AdminProducts = () => {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#063B32]/10 pb-6">
         <div>
-          <span className="text-xs font-bold uppercase tracking-widest text-[#B98262]">CATALOG MANAGMENT</span>
-          <h1 className="font-serif text-3xl font-bold text-[#10201F]">PRODUCT CATALOG (CRUD)</h1>
+          <span className="text-xs font-bold uppercase tracking-widest text-[#B98262]">CATALOG MANAGEMENT</span>
+          <h1 className="font-serif text-3xl font-bold text-[#10201F]">MENU & PRODUCT MANAGEMENT</h1>
         </div>
 
         <button 
@@ -142,8 +158,8 @@ export const AdminProducts = () => {
                 <th className="p-4">KATEGORI & SKU</th>
                 <th className="p-4">HARGA</th>
                 <th className="p-4">STOK</th>
-                <th className="p-4">BADGE</th>
-                <th className="p-4">STATUS</th>
+                <th className="p-4">BEST SELLER</th>
+                <th className="p-4">AVAILABLE</th>
                 <th className="p-4 text-right">AKSI</th>
               </tr>
             </thead>
@@ -155,7 +171,7 @@ export const AdminProducts = () => {
                       <img src={product.image} alt={product.name} className="w-12 h-12 rounded-xl object-cover border border-[#063B32]/10" />
                       <div>
                         <h4 className="font-serif font-bold text-sm text-[#10201F]">{product.name}</h4>
-                        <p className="text-[10px] text-[#B98262] uppercase font-semibold">{product.subtitle}</p>
+                        <p className="text-[10px] text-gray-500 font-normal line-clamp-1">{product.description}</p>
                       </div>
                     </div>
                   </td>
@@ -177,18 +193,22 @@ export const AdminProducts = () => {
                     </span>
                   </td>
                   <td className="p-4">
-                    <span className="px-2 py-0.5 rounded bg-[#063B32] text-[#D8C7A1] text-[10px] font-bold uppercase">
-                      {product.badge || 'STANDARD'}
-                    </span>
+                    {product.isBestSeller ? (
+                      <span className="px-2 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold uppercase flex items-center gap-1 w-max">
+                        <Star className="w-3 h-3 fill-current" /> BEST SELLER
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-[10px]">-</span>
+                    )}
                   </td>
                   <td className="p-4">
                     <button 
                       onClick={() => handleToggleArchive(product)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold ${
                         product.isAvailable ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
                       }`}
                     >
-                      {product.isAvailable ? 'Active' : 'Archived'}
+                      {product.isAvailable ? 'AVAILABLE' : 'DISABLED'}
                     </button>
                   </td>
                   <td className="p-4 text-right space-x-1">
@@ -221,7 +241,7 @@ export const AdminProducts = () => {
         </div>
       </div>
 
-      {/* CREATE / EDIT PRODUCT MODAL FORM */}
+      {/* CREATE / EDIT PRODUCT MODAL FORM (REQUIREMENT D) */}
       {(isCreatingNew || editingProduct) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#071B2A]/85 backdrop-blur-md overflow-y-auto animate-fade-in">
           <div className="relative w-full max-w-xl rounded-3xl bg-[#F5F1E8] border border-[#D8C7A1] p-6 sm:p-8 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -234,39 +254,65 @@ export const AdminProducts = () => {
             </button>
 
             <h3 className="font-serif text-2xl font-bold text-[#063B32]">
-              {editingProduct ? `Edit Produk: ${editingProduct.name}` : 'Tambah Produk Baru'}
+              {editingProduct ? `Edit Product: ${editingProduct.name}` : 'Create New Product'}
             </h3>
 
             <form onSubmit={handleSaveProduct} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">PRODUCT NAME *</label>
+                <input 
+                  type="text" 
+                  value={formData.name} 
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs font-bold"
+                  placeholder="e.g. MUSCLE CRISPY SIGNATURE"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">DESCRIPTION *</label>
+                <textarea 
+                  rows="3"
+                  value={formData.description} 
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                  placeholder="Deskripsi bahan & rasa..."
+                  required
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">NAMA PRODUK *</label>
+                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">PRICE *</label>
                   <input 
-                    type="text" 
-                    value={formData.name} 
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                    type="number" 
+                    value={formData.price} 
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })} 
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs font-bold"
+                    placeholder="45000"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">SUBTITLE / TAGLINE</label>
+                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">DISCOUNT PRICE</label>
                   <input 
-                    type="text" 
-                    value={formData.subtitle} 
-                    onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                    type="number" 
+                    value={formData.discountPrice} 
+                    onChange={(e) => setFormData({ ...formData, discountPrice: e.target.value })} 
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                    placeholder="Optional promo price..."
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">KATEGORI *</label>
+                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">CATEGORY *</label>
                   <select 
                     value={formData.category} 
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs font-bold"
                   >
                     <option value="fried">Fried Chicken</option>
                     <option value="grilled">Grilled Chicken</option>
@@ -280,97 +326,57 @@ export const AdminProducts = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">HARGA (IDR) *</label>
-                  <input 
-                    type="number" 
-                    value={formData.price} 
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">HARGA DISKON (OPTIONAL)</label>
-                  <input 
-                    type="number" 
-                    value={formData.discountPrice} 
-                    onChange={(e) => setFormData({ ...formData, discountPrice: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">STOK *</label>
+                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">STOCK *</label>
                   <input 
                     type="number" 
                     value={formData.stock} 
                     onChange={(e) => setFormData({ ...formData, stock: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs font-bold"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">AMBANG LOW STOCK</label>
+                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">LOW STOCK THRESHOLD</label>
                   <input 
                     type="number" 
                     value={formData.lowStockThreshold} 
                     onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">SPICY LEVEL (0-5)</label>
-                  <input 
-                    type="number" 
-                    min="0" 
-                    max="5"
-                    value={formData.spicyLevel} 
-                    onChange={(e) => setFormData({ ...formData, spicyLevel: e.target.value })} 
-                    className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">URL GAMBAR FOTO *</label>
+                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">IMAGE *</label>
                 <input 
                   type="url" 
                   value={formData.image} 
                   onChange={(e) => setFormData({ ...formData, image: e.target.value })} 
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">DESKRIPSI PRODUK *</label>
-                <textarea 
-                  rows="3"
-                  value={formData.description} 
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-[#063B32]/20 text-xs"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs font-mono"
+                  placeholder="https://..."
                   required
                 />
               </div>
 
               <div className="flex items-center gap-6 pt-2">
-                <label className="flex items-center gap-2 text-xs font-bold">
+                <label className="flex items-center gap-2 text-xs font-bold text-[#10201F] cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={formData.isAvailable} 
+                    onChange={(e) => setFormData({ ...formData, isAvailable: e.target.checked })} 
+                    className="w-4 h-4"
+                  />
+                  <span>AVAILABLE</span>
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-bold text-[#10201F] cursor-pointer">
                   <input 
                     type="checkbox" 
                     checked={formData.isBestSeller} 
                     onChange={(e) => setFormData({ ...formData, isBestSeller: e.target.checked })} 
+                    className="w-4 h-4"
                   />
-                  <span>Tandai Best Seller</span>
-                </label>
-                <label className="flex items-center gap-2 text-xs font-bold">
-                  <input 
-                    type="checkbox" 
-                    checked={formData.isFeatured} 
-                    onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })} 
-                  />
-                  <span>Tandai Featured</span>
+                  <span>BEST SELLER</span>
                 </label>
               </div>
 
@@ -378,15 +384,15 @@ export const AdminProducts = () => {
                 <button 
                   type="button" 
                   onClick={() => { setIsCreatingNew(false); setEditingProduct(null); }}
-                  className="px-4 py-2 rounded-xl bg-gray-200 text-xs font-bold"
+                  className="px-4 py-2.5 rounded-xl bg-gray-200 text-xs font-bold"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button 
                   type="submit" 
-                  className="px-6 py-2 rounded-xl bg-[#063B32] text-[#D8C7A1] text-xs font-bold uppercase tracking-wider"
+                  className="px-6 py-2.5 rounded-xl bg-[#063B32] text-[#D8C7A1] text-xs font-bold uppercase tracking-wider hover:bg-[#071B2A] border border-[#D8C7A1] shadow-lg"
                 >
-                  Simpan Produk
+                  SAVE PRODUCT
                 </button>
               </div>
             </form>
