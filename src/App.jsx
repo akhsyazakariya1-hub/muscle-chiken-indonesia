@@ -47,14 +47,15 @@ const MainLayout = () => {
   const [selectedOrderForModal, setSelectedOrderForModal] = useState(null);
 
   // URL Path & Hash Router state listener
-  const [currentPath, setCurrentPath] = useState(window.location.pathname + window.location.hash);
+  const getFullLocation = () => window.location.pathname + window.location.search + window.location.hash;
+  const [currentPath, setCurrentPath] = useState(getFullLocation());
 
   useEffect(() => {
     const handleLocationChange = () => {
-      const path = window.location.pathname + window.location.hash;
+      const path = getFullLocation();
       setCurrentPath(path);
 
-      if (path.includes('/admin') || path.includes('#admin')) {
+      if (path.includes('/admin') || path.includes('#admin') || path.includes('p=/admin')) {
         setIsAdminMode(true);
       }
     };
@@ -72,8 +73,8 @@ const MainLayout = () => {
   }, [setIsAdminMode]);
 
   // Determine if Admin Route is active
-  const isAdminRoute = isAdminMode || currentPath.includes('/admin') || currentPath.includes('#admin');
-  const isLoginPageExplicit = currentPath.includes('/admin/login') || currentPath.includes('#admin/login');
+  const isAdminRoute = isAdminMode || currentPath.includes('/admin') || currentPath.includes('#admin') || currentPath.includes('p=/admin');
+  const isLoginPageExplicit = currentPath.includes('/admin/login') || currentPath.includes('#admin/login') || currentPath.includes('p=/admin/login');
 
   // --- 1. ADMIN ROUTE HANDLING ---
   if (isAdminRoute) {
