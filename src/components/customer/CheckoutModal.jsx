@@ -4,6 +4,7 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { dbService } from '../../services/db';
 import { buildWhatsAppOrderMessage } from '../../services/whatsapp';
+import { StructuredAddressForm } from '../ui/StructuredAddressForm';
 import { QRISModal } from '../ui/QRISModal';
 import { 
   X, 
@@ -27,11 +28,30 @@ export const CheckoutModal = () => {
 
   const [step, setStep] = useState(1);
 
-  // Form Fields
+  // Customer Contact Fields
   const [name, setName] = useState(user?.name || '');
   const [whatsapp, setWhatsapp] = useState(user?.whatsapp || '');
-  const [address, setAddress] = useState(user?.address || '');
   const [notes, setNotes] = useState('');
+
+  // Structured Address State
+  const [structuredAddress, setStructuredAddress] = useState(user?.structuredAddress || {
+    provinceId: '33',
+    provinceName: 'Jawa Tengah',
+    cityId: '3329',
+    cityName: 'Kabupaten Brebes',
+    districtId: '332904',
+    districtName: 'Ketanggungan',
+    villageId: '3329042001',
+    villageName: 'Ketanggungan',
+    street: '',
+    houseNumber: '',
+    postalCode: '52263',
+    additionalDetails: '',
+    latitude: null,
+    longitude: null
+  });
+
+  const [addressErrors, setAddressErrors] = useState({});
 
   // Payment Selection
   const [paymentMethod, setPaymentMethod] = useState('QRIS');
@@ -42,14 +62,33 @@ export const CheckoutModal = () => {
 
   const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
 
+  const validateAddress = () => {
+    const errors = {};
+    if (!name.trim()) errors.name = 'Please enter your name.';
+    if (!whatsapp.trim()) errors.whatsapp = 'Please enter your WhatsApp phone number.';
+
+    if (deliveryType === 'DELIVERY') {
+      if (!structuredAddress.provinceId) errors.province = 'Please select your province.';
+      if (!structuredAddress.cityId) errors.city = 'Please select your city/regency.';
+      if (!structuredAddress.districtId) errors.district = 'Please select your district.';
+      if (!structuredAddress.villageId) errors.village = 'Please select your village.';
+      if (!structuredAddress.street?.trim()) errors.street = 'Please enter your street.';
+      if (!structuredAddress.houseNumber?.trim()) errors.houseNumber = 'Please enter your house number.';
+    }
+
+    setAddressErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleStep1Next = (e) => {
     e.preventDefault();
-    if (!name || !whatsapp || (deliveryType === 'DELIVERY' && !address)) {
-      showToast('Mohon lengkapi data pengiriman Anda.', 'error');
+    if (!validateAddress()) {
+      showToast('Please fix the errors in the delivery form.', 'error');
       return;
     }
-    // Auto save customer details
-    loginCustomer(name, whatsapp, address);
+
+    // Auto save customer session details
+    loginCustomer(name, whatsapp, structuredAddress.formattedAddress);
     setStep(2);
   };
 
@@ -59,15 +98,20 @@ export const CheckoutModal = () => {
     const orderData = {
       customerName: name,
       whatsapp,
-      address: deliveryType === 'DELIVERY' ? address : 'PICKUP AT STORE (SCBD Lot 28)',
+      structured_address: deliveryType === 'DELIVERY' ? structuredAddress : null,
+      address: deliveryType === 'DELIVERY' ? structuredAddress.formattedAddress : 'PICKUP AT STORE (SCBD Lot 28)',
+      latitude: deliveryType === 'DELIVERY' ? structuredAddress.latitude : null,
+      longitude: deliveryType === 'DELIVERY' ? structuredAddress.longitude : null,
       deliveryType,
       items: cartItems.map(i => ({
         id: i.id,
         name: i.name,
         price: i.price,
+        discountPrice: i.discountPrice || null,
         quantity: i.quantity,
         sauce: i.sauce,
-        spicyLevel: i.spicyLevel
+        spicyLevel: i.spicyLevel,
+        sku: i.sku
       })),
       subtotal,
       deliveryFee: deliveryType === 'DELIVERY' ? deliveryFee : 0,
@@ -89,11 +133,7 @@ export const CheckoutModal = () => {
 
   const finalizeOrderProcess = (order) => {
     clearCart();
-    showToast(`Order #${order.id} berhasil dibuat!`, 'success');
-
-    // Build WA link if customer wants to send to admin
-    const waData = buildWhatsAppOrderMessage(order);
-    
+    showToast(`Order #${order.id} successfully created!`, 'success');
     setIsCheckoutOpen(false);
     setActiveTrackingOrderId(order.id);
   };
@@ -121,29 +161,29 @@ export const CheckoutModal = () => {
         <div className="bg-[#E8E5DC] px-6 py-3 border-b border-[#063B32]/10 flex items-center justify-between text-xs font-bold text-[#10201F]">
           <div className={`flex items-center gap-1.5 ${step >= 1 ? 'text-[#063B32]' : 'text-gray-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 1 ? 'bg-[#063B32] text-[#D8C7A1]' : 'bg-gray-300'}`}>1</span>
-            <span>Pengiriman</span>
+            <span>Structured Address</span>
           </div>
           <span className="text-gray-300">•</span>
           <div className={`flex items-center gap-1.5 ${step >= 2 ? 'text-[#063B32]' : 'text-gray-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 2 ? 'bg-[#063B32] text-[#D8C7A1]' : 'bg-gray-300'}`}>2</span>
-            <span>Ringkasan</span>
+            <span>Summary</span>
           </div>
           <span className="text-gray-300">•</span>
           <div className={`flex items-center gap-1.5 ${step >= 3 ? 'text-[#063B32]' : 'text-gray-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 3 ? 'bg-[#063B32] text-[#D8C7A1]' : 'bg-gray-300'}`}>3</span>
-            <span>Pembayaran</span>
+            <span>Payment</span>
           </div>
         </div>
 
         {/* STEP CONTENT BODY */}
         <div className="p-6 overflow-y-auto flex-1">
           
-          {/* STEP 1: DELIVERY ADDRESS & DETAILS */}
+          {/* STEP 1: DELIVERY ADDRESS & CONTACT DETAILS */}
           {step === 1 && (
             <form onSubmit={handleStep1Next} className="space-y-4">
               
               {/* Delivery vs Pickup Toggle */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="grid grid-cols-2 gap-3 mb-2">
                 <button
                   type="button"
                   onClick={() => setDeliveryType('DELIVERY')}
@@ -171,247 +211,221 @@ export const CheckoutModal = () => {
                 </button>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">NAMA LENGKAP *</label>
-                <input 
-                  type="text" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                  placeholder="Masukkan nama penerima..."
-                  className="w-full px-4 py-3 rounded-xl bg-white border border-[#063B32]/20 text-sm focus:outline-none focus:border-[#063B32]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">NOMOR WHATSAPP *</label>
-                <input 
-                  type="tel" 
-                  value={whatsapp} 
-                  onChange={(e) => setWhatsapp(e.target.value)} 
-                  placeholder="Contoh: 081234567890"
-                  className="w-full px-4 py-3 rounded-xl bg-white border border-[#063B32]/20 text-sm focus:outline-none focus:border-[#063B32]"
-                  required
-                />
-              </div>
-
-              {deliveryType === 'DELIVERY' ? (
+              {/* CONTACT DETAILS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">ALAMAT PENGIRIMAN LENGKAP *</label>
-                  <textarea 
-                    rows="3"
-                    value={address} 
-                    onChange={(e) => setAddress(e.target.value)} 
-                    placeholder="Nama jalan, nomor rumah, lantai/unit apartemen, patokan..."
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-[#063B32]/20 text-sm focus:outline-none focus:border-[#063B32]"
-                    required
+                  <label className="block text-xs font-bold uppercase text-[#063B32] mb-1">FULL NAME *</label>
+                  <input 
+                    type="text" 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)} 
+                    placeholder="Enter customer full name..."
+                    className="w-full p-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs focus:outline-none focus:border-[#063B32]"
+                  />
+                  {addressErrors.name && <p className="text-[10px] text-red-600 font-bold mt-0.5">{addressErrors.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-[#063B32] mb-1">WHATSAPP PHONE *</label>
+                  <input 
+                    type="tel" 
+                    value={whatsapp} 
+                    onChange={(e) => setWhatsapp(e.target.value)} 
+                    placeholder="e.g. 081234567890"
+                    className="w-full p-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs focus:outline-none focus:border-[#063B32]"
+                  />
+                  {addressErrors.whatsapp && <p className="text-[10px] text-red-600 font-bold mt-0.5">{addressErrors.whatsapp}</p>}
+                </div>
+              </div>
+
+              {/* STRUCTURED ADDRESS OR PICKUP STORE */}
+              {deliveryType === 'DELIVERY' ? (
+                <div className="p-4 rounded-2xl bg-white/70 border border-[#063B32]/15 space-y-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#063B32] block border-b pb-1">
+                    STRUCTURED ADMINISTRATIVE ADDRESS (INDONESIA)
+                  </span>
+                  <StructuredAddressForm
+                    value={structuredAddress}
+                    onChange={(updated) => setStructuredAddress(updated)}
+                    errors={addressErrors}
                   />
                 </div>
               ) : (
                 <div className="p-4 rounded-xl bg-[#063B32]/10 border border-[#063B32]/20 text-xs text-[#063B32]">
-                  <p className="font-bold">Lokasi Store Ambil Sendiri:</p>
-                  <p className="mt-1">SCBD Lot 28, Jl. Jend. Sudirman No.52, Kebayoran Baru, Jakarta Selatan</p>
+                  <p className="font-bold uppercase tracking-wider">STORE PICKUP LOCATION:</p>
+                  <p className="mt-1">Muscle Chicken SCBD Flagship Store — SCBD Lot 28, Jl. Jend. Sudirman No.52, Kebayoran Baru, Jakarta Selatan</p>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold uppercase text-[#10201F] mb-1">CATATAN KHUSUS (OPTIONAL)</label>
+                <label className="block text-xs font-bold uppercase text-[#063B32] mb-1">SPECIAL KITCHEN NOTES (OPTIONAL)</label>
                 <input 
                   type="text" 
                   value={notes} 
                   onChange={(e) => setNotes(e.target.value)} 
-                  placeholder="Contoh: Kurangi sambal, pisahkan saus, titip di sekuriti..."
-                  className="w-full px-4 py-3 rounded-xl bg-white border border-[#063B32]/20 text-sm focus:outline-none focus:border-[#063B32]"
+                  placeholder="e.g. Separate chili sauce / Extra crispy coating"
+                  className="w-full p-2.5 rounded-xl bg-white border border-[#063B32]/20 text-xs focus:outline-none focus:border-[#063B32]"
                 />
               </div>
 
-              <button 
-                type="submit"
-                className="w-full py-4 rounded-xl bg-[#063B32] text-[#D8C7A1] font-bold text-xs uppercase tracking-widest hover:bg-[#071B2A] border border-[#D8C7A1] transition-all flex items-center justify-center gap-2 shadow-lg mt-4"
-              >
-                <span>LANJUT KE RINGKASAN</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="pt-4 flex justify-end">
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-8 py-3 rounded-xl bg-[#063B32] text-[#D8C7A1] text-xs font-bold uppercase tracking-wider hover:bg-[#071B2A] transition-all flex items-center justify-center gap-2 shadow-md"
+                >
+                  <span>CONTINUE TO ORDER SUMMARY</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </form>
           )}
 
-          {/* STEP 2: ORDER SUMMARY */}
+          {/* STEP 2: SUMMARY */}
           {step === 2 && (
             <div className="space-y-4">
-              <h3 className="font-serif text-lg font-bold text-[#063B32]">Ringkasan Pesanan Anda</h3>
-              
-              <div className="divide-y divide-[#063B32]/10 max-h-48 overflow-y-auto">
-                {cartItems.map(item => (
-                  <div key={item.cartKey} className="py-2.5 flex items-center justify-between text-xs">
-                    <div>
-                      <p className="font-bold text-[#10201F]">{item.name} x{item.quantity}</p>
-                      {item.sauce && <p className="text-[10px] text-[#063B32]">Saus: {item.sauce}</p>}
-                    </div>
-                    <span className="font-bold text-[#063B32]">{formatRupiah(item.price * item.quantity)}</span>
-                  </div>
-                ))}
+              <div className="p-4 rounded-2xl bg-white border border-[#063B32]/10 space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#063B32] block border-b pb-1">
+                  DELIVERY RECIPIENT SUMMARY
+                </span>
+                <p className="text-xs"><strong>Name:</strong> {name}</p>
+                <p className="text-xs"><strong>WhatsApp:</strong> {whatsapp}</p>
+                <p className="text-xs"><strong>Address:</strong> {deliveryType === 'DELIVERY' ? structuredAddress.formattedAddress : 'PICKUP AT SCBD STORE'}</p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#E8E5DC] text-xs space-y-1.5 border border-[#063B32]/10">
+              <div className="p-4 rounded-2xl bg-white border border-[#063B32]/10 space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#063B32] block border-b pb-1">
+                  CART ITEMS ({cartItems.length})
+                </span>
+                <div className="divide-y divide-[#063B32]/10">
+                  {cartItems.map(item => (
+                    <div key={item.id} className="py-2 flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-bold text-[#10201F]">{item.name}</p>
+                        <p className="text-gray-500">{formatRupiah(item.price)} x {item.quantity}</p>
+                      </div>
+                      <p className="font-bold text-[#063B32]">{formatRupiah(item.price * item.quantity)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#E8E5DC] text-xs space-y-1.5 font-bold text-[#063B32]">
                 <div className="flex justify-between">
-                  <span>Penerima:</span>
-                  <span className="font-bold text-[#10201F]">{name} ({whatsapp})</span>
+                  <span>Subtotal:</span>
+                  <span>{formatRupiah(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Alamat:</span>
-                  <span className="font-bold text-[#10201F] truncate max-w-[200px]">{address || 'Pickup at store'}</span>
+                  <span>Delivery Fee:</span>
+                  <span>{formatRupiah(deliveryType === 'DELIVERY' ? deliveryFee : 0)}</span>
                 </div>
-                <div className="flex justify-between border-t border-[#063B32]/10 pt-2 font-bold text-sm text-[#063B32]">
-                  <span>Total Pembayaran:</span>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-emerald-800">
+                    <span>Discount:</span>
+                    <span>-{formatRupiah(discountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-base font-serif border-t border-[#063B32]/10 pt-2 text-[#063B32]">
+                  <span>TOTAL FEAST:</span>
                   <span>{formatRupiah(deliveryType === 'DELIVERY' ? grandTotal : Math.max(0, subtotal - discountAmount))}</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button 
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  type="button"
                   onClick={() => setStep(1)}
-                  className="py-3 rounded-xl bg-gray-200 text-[#10201F] font-bold text-xs uppercase"
+                  className="px-4 py-2.5 rounded-xl bg-gray-200 text-[#10201F] text-xs font-bold"
                 >
-                  Kembali
+                  BACK
                 </button>
-                <button 
+
+                <button
+                  type="button"
                   onClick={() => setStep(3)}
-                  className="py-3 rounded-xl bg-[#063B32] text-[#D8C7A1] font-bold text-xs uppercase hover:bg-[#071B2A]"
+                  className="px-8 py-3 rounded-xl bg-[#063B32] text-[#D8C7A1] text-xs font-bold uppercase tracking-wider hover:bg-[#071B2A] transition-all flex items-center justify-center gap-2 shadow-md"
                 >
-                  Lanjut ke Pembayaran
+                  <span>SELECT PAYMENT METHOD</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 3: PAYMENT METHOD SELECTION */}
+          {/* STEP 3: PAYMENT METHOD */}
           {step === 3 && (
             <div className="space-y-4">
-              <h3 className="font-serif text-lg font-bold text-[#063B32]">Pilih Metode Pembayaran</h3>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#063B32] block">
+                CHOOSE PAYMENT METHOD
+              </span>
 
-              <div className="space-y-3">
-                
-                {/* QRIS */}
-                <div 
-                  onClick={() => setPaymentMethod('QRIS')}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    paymentMethod === 'QRIS'
-                      ? 'bg-[#063B32]/10 border-[#063B32] shadow-md'
-                      : 'bg-white border-[#063B32]/10 hover:border-[#063B32]/40'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#063B32] text-[#D8C7A1]">
-                      <QrCode className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-[#10201F]">QRIS Instant Payment</h4>
-                      <p className="text-[10px] text-[#10201F]/60">Scan via GoPay, OVO, Dana, ShopeePay, BCA, Mandiri</p>
-                    </div>
-                  </div>
-                  <input type="radio" checked={paymentMethod === 'QRIS'} readOnly />
-                </div>
-
-                {/* BANK TRANSFER */}
-                <div 
-                  onClick={() => setPaymentMethod('Bank Transfer')}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    paymentMethod === 'Bank Transfer'
-                      ? 'bg-[#063B32]/10 border-[#063B32] shadow-md'
-                      : 'bg-white border-[#063B32]/10 hover:border-[#063B32]/40'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#071B2A] text-[#D8C7A1]">
-                      <Building className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-[#10201F]">Bank Transfer / Virtual Account</h4>
-                      <p className="text-[10px] text-[#10201F]/60">BCA, Mandiri, BNI, BRI Automatic Verification</p>
-                    </div>
-                  </div>
-                  <input type="radio" checked={paymentMethod === 'Bank Transfer'} readOnly />
-                </div>
-
-                {/* E-WALLET */}
-                <div 
-                  onClick={() => setPaymentMethod('E-Wallet')}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    paymentMethod === 'E-Wallet'
-                      ? 'bg-[#063B32]/10 border-[#063B32] shadow-md'
-                      : 'bg-white border-[#063B32]/10 hover:border-[#063B32]/40'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#B98262] text-white">
-                      <Wallet className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-[#10201F]">E-Wallet Deep Link</h4>
-                      <p className="text-[10px] text-[#10201F]/60">GoPay, ShopeePay, DANA Instant Checkout</p>
-                    </div>
-                  </div>
-                  <input type="radio" checked={paymentMethod === 'E-Wallet'} readOnly />
-                </div>
-
-                {/* CASH ON DELIVERY */}
-                <div 
-                  onClick={() => setPaymentMethod('COD')}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    paymentMethod === 'COD'
-                      ? 'bg-[#063B32]/10 border-[#063B32] shadow-md'
-                      : 'bg-white border-[#063B32]/10 hover:border-[#063B32]/40'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#063B32] text-[#D8C7A1]">
-                      <Banknote className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-[#10201F]">Cash on Delivery (COD)</h4>
-                      <p className="text-[10px] text-[#10201F]/60">Bayar tunai di tempat saat pesanan tiba</p>
-                    </div>
-                  </div>
-                  <input type="radio" checked={paymentMethod === 'COD'} readOnly />
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { id: 'QRIS', label: 'QRIS Instant', icon: QrCode, desc: 'GoPay, OVO, ShopeePay, BCA' },
+                  { id: 'BANK_TRANSFER', label: 'Bank Transfer', icon: CreditCard, desc: 'BCA / Mandiri / BNI' },
+                  { id: 'COD', label: 'Cash On Delivery', icon: Banknote, desc: 'Pay directly to courier' }
+                ].map(pm => {
+                  const IconComp = pm.icon;
+                  const isSelected = paymentMethod === pm.id;
+                  return (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(pm.id)}
+                      className={`p-4 rounded-2xl border text-left transition-all ${
+                        isSelected 
+                          ? 'bg-[#063B32] text-[#D8C7A1] border-[#D8C7A1] shadow-lg' 
+                          : 'bg-white text-[#10201F] border-[#063B32]/10 hover:border-[#063B32]/30'
+                      }`}
+                    >
+                      <IconComp className={`w-5 h-5 mb-2 ${isSelected ? 'text-[#D8C7A1]' : 'text-[#063B32]'}`} />
+                      <p className="font-bold text-xs">{pm.label}</p>
+                      <p className={`text-[10px] mt-0.5 ${isSelected ? 'text-[#F7F3EA]/80' : 'text-gray-500'}`}>{pm.desc}</p>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#063B32]/10">
-                <button 
+              <div className="p-4 rounded-2xl bg-[#063B32]/10 border border-[#063B32]/20 flex items-center justify-between text-xs">
+                <span className="font-bold text-[#063B32]">TOTAL TO PAY:</span>
+                <span className="font-serif font-bold text-lg text-[#063B32]">
+                  {formatRupiah(deliveryType === 'DELIVERY' ? grandTotal : Math.max(0, subtotal - discountAmount))}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-4">
+                <button
+                  type="button"
                   onClick={() => setStep(2)}
-                  className="py-3.5 rounded-xl bg-gray-200 text-[#10201F] font-bold text-xs uppercase"
+                  className="px-4 py-2.5 rounded-xl bg-gray-200 text-[#10201F] text-xs font-bold"
                 >
-                  Kembali
+                  BACK
                 </button>
-                <button 
+
+                <button
+                  type="button"
                   onClick={handleCreateOrder}
-                  className="py-3.5 rounded-xl bg-[#063B32] text-[#D8C7A1] font-bold text-xs uppercase tracking-wider hover:bg-[#071B2A] border border-[#D8C7A1] flex items-center justify-center gap-2 shadow-lg"
+                  className="px-8 py-3 rounded-xl bg-emerald-700 text-white text-xs font-bold uppercase tracking-wider hover:bg-emerald-800 transition-all flex items-center justify-center gap-2 shadow-xl"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>KONFIRMASI ORDER</span>
+                  <span>PLACE ORDER & CONFIRM</span>
                 </button>
               </div>
             </div>
           )}
 
         </div>
-
       </div>
 
-      {/* QRIS PAYMENT POPUP */}
+      {/* QRIS MODAL IF SELECTED */}
       {isQRISOpen && createdOrder && (
-        <QRISModal 
-          totalAmount={createdOrder.total}
-          orderId={createdOrder.id}
-          onConfirm={() => {
+        <QRISModal
+          order={createdOrder}
+          onClose={() => {
             setIsQRISOpen(false);
             finalizeOrderProcess(createdOrder);
           }}
-          onClose={() => setIsQRISOpen(false)}
         />
       )}
-
     </div>
   );
 };

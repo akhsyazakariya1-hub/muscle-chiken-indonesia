@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
-import { dbService } from '../../services/db';
+import { dbService, normalizeOrderStatus, formatWIBDateTime } from '../../services/db';
 import { X, User, Phone, MapPin, Heart, Clock, LogOut, Compass, Sparkles } from 'lucide-react';
 
 export const CustomerProfileModal = () => {
@@ -11,7 +11,13 @@ export const CustomerProfileModal = () => {
 
   if (!isProfileOpen || !user) return null;
 
-  const orders = dbService.getOrders().filter(o => o.whatsapp === user.whatsapp || o.customerName === user.name);
+  const orders = dbService.getOrders().filter(o => 
+    (o.customer_phone && o.customer_phone === user.whatsapp) || 
+    (o.whatsapp && o.whatsapp === user.whatsapp) ||
+    (o.customer_name && o.customer_name === user.name) ||
+    (o.customerName && o.customerName === user.name)
+  );
+  
   const favoriteProducts = products.filter(p => favorites.includes(p.id));
 
   const formatRupiah = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
@@ -24,7 +30,7 @@ export const CustomerProfileModal = () => {
         <div className="p-6 bg-[#063B32] text-[#F7F3EA] border-b border-[#D8C7A1]/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#071B2A] border border-[#D8C7A1] text-[#D8C7A1] flex items-center justify-center font-bold font-serif text-lg">
-              {user.name[0]}
+              {user.name ? user.name[0].toUpperCase() : 'U'}
             </div>
             <div>
               <h2 className="font-serif text-xl font-bold tracking-wide">{user.name}</h2>
@@ -48,7 +54,7 @@ export const CustomerProfileModal = () => {
               activeTab === 'orders' ? 'bg-[#063B32] text-[#D8C7A1]' : 'hover:bg-gray-200'
             }`}
           >
-            Pesanan Saya ({orders.length})
+            My Orders ({orders.length})
           </button>
           <button
             onClick={() => setActiveTab('favorites')}
@@ -56,7 +62,7 @@ export const CustomerProfileModal = () => {
               activeTab === 'favorites' ? 'bg-[#063B32] text-[#D8C7A1]' : 'hover:bg-gray-200'
             }`}
           >
-            Favorit ({favoriteProducts.length})
+            Favorites ({favoriteProducts.length})
           </button>
           <button
             onClick={() => setActiveTab('profile')}
@@ -64,7 +70,7 @@ export const CustomerProfileModal = () => {
               activeTab === 'profile' ? 'bg-[#063B32] text-[#D8C7A1]' : 'hover:bg-gray-200'
             }`}
           >
-            Info Akun
+            Account Info
           </button>
         </div>
 
@@ -75,42 +81,47 @@ export const CustomerProfileModal = () => {
           {activeTab === 'orders' && (
             <div className="space-y-4">
               {orders.length > 0 ? (
-                orders.map(ord => (
-                  <div key={ord.id} className="p-4 rounded-2xl bg-[#E8E5DC] border border-[#063B32]/10 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-[#063B32]">#{ord.id}</span>
-                        <span className="text-[10px] text-gray-500">{new Date(ord.createdAt).toLocaleDateString('id-ID')}</span>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#063B32] text-[#D8C7A1] text-[10px] font-bold">
-                        {ord.status}
-                      </span>
-                    </div>
+                orders.map(ord => {
+                  const statusId = normalizeOrderStatus(ord.order_status || ord.status);
+                  const wibTime = formatWIBDateTime(ord.created_at || ord.createdAt);
 
-                    <div className="text-xs space-y-1">
-                      {ord.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between">
-                          <span>{item.name} x{item.quantity}</span>
-                          <span className="font-bold">{formatRupiah(item.price * item.quantity)}</span>
+                  return (
+                    <div key={ord.id} className="p-4 rounded-2xl bg-[#E8E5DC] border border-[#063B32]/10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs font-bold text-[#063B32]">#{ord.id}</span>
+                          <span className="text-[10px] text-gray-500 font-mono">{wibTime.full}</span>
                         </div>
-                      ))}
-                    </div>
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#063B32] text-[#D8C7A1] text-[10px] font-bold uppercase tracking-wider">
+                          {statusId}
+                        </span>
+                      </div>
 
-                    <div className="pt-2 border-t border-[#063B32]/10 flex items-center justify-between">
-                      <span className="font-serif font-bold text-sm text-[#063B32]">Total: {formatRupiah(ord.total)}</span>
-                      <button
-                        onClick={() => {
-                          setIsProfileOpen(false);
-                          setActiveTrackingOrderId(ord.id);
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-[#063B32] text-[#D8C7A1] text-xs font-bold flex items-center gap-1.5 hover:bg-[#071B2A]"
-                      >
-                        <Compass className="w-3.5 h-3.5" />
-                        <span>LACAK ORDER</span>
-                      </button>
+                      <div className="text-xs space-y-1">
+                        {(ord.items || []).map((item, idx) => (
+                          <div key={idx} className="flex justify-between">
+                            <span>{item.name} x{item.quantity}</span>
+                            <span className="font-bold">{formatRupiah(item.price * item.quantity)}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-2 border-t border-[#063B32]/10 flex items-center justify-between">
+                        <span className="font-serif font-bold text-sm text-[#063B32]">Total: {formatRupiah(ord.total)}</span>
+                        <button
+                          onClick={() => {
+                            setIsProfileOpen(false);
+                            setActiveTrackingOrderId(ord.id);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-[#063B32] text-[#D8C7A1] text-xs font-bold flex items-center gap-1.5 hover:bg-[#071B2A] transition-all shadow-sm"
+                        >
+                          <Compass className="w-3.5 h-3.5" />
+                          <span>TRACK ORDER REALTIME</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="py-12 text-center text-[#10201F]/60">
                   <Clock className="w-12 h-12 text-[#063B32]/30 mx-auto mb-2" />
@@ -136,7 +147,7 @@ export const CustomerProfileModal = () => {
               ) : (
                 <div className="py-12 text-center text-[#10201F]/60">
                   <Heart className="w-12 h-12 text-[#063B32]/30 mx-auto mb-2" />
-                  <p className="font-serif text-lg font-bold">Save your favorites here.</p>
+                  <p className="font-serif text-lg font-bold">Save your favorite gourmet chicken items here.</p>
                 </div>
               )}
             </div>
@@ -146,16 +157,16 @@ export const CustomerProfileModal = () => {
           {activeTab === 'profile' && (
             <div className="p-4 rounded-2xl bg-[#E8E5DC] border border-[#063B32]/10 space-y-3 text-xs text-[#10201F]">
               <div>
-                <span className="text-gray-500 block">Nama Lengkap</span>
+                <span className="text-gray-500 block">Full Name</span>
                 <p className="font-bold text-sm">{user.name}</p>
               </div>
               <div>
-                <span className="text-gray-500 block">WhatsApp</span>
+                <span className="text-gray-500 block">WhatsApp Phone</span>
                 <p className="font-bold text-sm">{user.whatsapp}</p>
               </div>
               <div>
-                <span className="text-gray-500 block">Alamat Tersimpan</span>
-                <p className="font-bold text-sm">{user.address || 'Belum diisi'}</p>
+                <span className="text-gray-500 block">Default Delivery Address</span>
+                <p className="font-bold text-sm">{user.address || 'No address set'}</p>
               </div>
               {user.email && (
                 <div>
@@ -174,7 +185,7 @@ export const CustomerProfileModal = () => {
             onClick={() => {
               logoutCustomer();
               setIsProfileOpen(false);
-              showToast('Anda telah keluar dari profil.', 'info');
+              showToast('Logged out of profile.', 'info');
             }}
             className="px-4 py-2 rounded-xl bg-red-100 text-red-700 text-xs font-bold flex items-center gap-2 hover:bg-red-200"
           >
@@ -186,7 +197,7 @@ export const CustomerProfileModal = () => {
             onClick={() => setIsProfileOpen(false)}
             className="px-5 py-2 rounded-xl bg-[#063B32] text-[#D8C7A1] text-xs font-bold"
           >
-            TUTUP
+            CLOSE
           </button>
         </div>
 
